@@ -63,6 +63,34 @@ normalized, so the result might not be exactly what you would expect.
 
 There must be an easter-egg to do just that...
 
+## OSC addresses ##
+
+By default, SuperCollider will be listening on `localhost:57120`.
+
+| Address               | Valid message
+|-                      |-
+| /spp/freq             | float from 10.0 to 500.0 (frequency in Hz)
+| /spp/level            | float from 0.0 to 1.0
+| /spp/amp              | float from 0.0 to 1.0
+| /spp/verb/mix         | float from 0.0 to 1.0
+| /spp/verb/room        | float from 0.0 to 1.0
+| /spp/verb/damp        | float from 0.0 to 1.0
+| /spp/mode             | one of ['r', 'd', 'g', 'f', 't', 'c', 's', 0]
+| /spp/ramp/start       | float from 0.0 to 1.0
+| /spp/ramp/step        | float from 0.0 to 1.0
+| /spp/decay/k          | float from 0.0 to 1.0
+| /spp/geom/k           | float from 0.0 to 1.0
+| /spp/formant/center   | float from 0.0 to 1.0
+| /spp/formant/width    | float from 0.0 to 1.0
+| /spp/teeth/start      | float from 0.0 to 1.0
+| /spp/teeth/space      | float from 0.0 to 1.0
+| /spp/cutoff/n         | float from 0.0 to 1.0
+| /spp/shelf/start      | float from 0.0 to 1.0
+| /spp/shelf/end        | float from 0.0 to 1.0
+| /spp/shelf/slevel     | float from 0.0 to 1.0
+| /spp/shelf/elevel     | float from 0.0 to 1.0
+
 ## Issues ##
 
 There are issues I'm working on. You can help if you're up for it.
+You can find them [here](https://github.com/inegm/spp/issues).

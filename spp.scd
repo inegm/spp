@@ -1,10 +1,19 @@
 (
+{
 (PathName(thisProcess.nowExecutingPath).pathOnly ++ "spp_def.scd").loadPaths;
 (PathName(thisProcess.nowExecutingPath).pathOnly ++ "gui_place.scd").loadPaths;
 (PathName(thisProcess.nowExecutingPath).pathOnly ++ "gui_ctrls.scd").loadPaths;
-
+}.doOnServerBoot;
+o = Server.local.options;
+o.device = "ES-8";
+o.numOutputBusChannels = 8;
+s.reboot;
+s.meter;
+)
+(
 ~init_synth = {
-	arg n_partials=128, freq=60.0, amp=0.4, out=0, mix=0.0, room=0.3, damp=0.5;
+	arg n_partials=128, freq=60.0, amp=1.0, level=0.4, out=0,
+		mix=0.0, room=0.3, damp=0.5;
 	var osc_levels_path, synth, harm_array, harm_buffer, oscillator;
 
 	harm_array = Harmonics.new(n_partials);
@@ -14,6 +23,7 @@
 			\n_partials, n_partials,
 			\freq, freq,
 			\amp, amp,
+			\level, level,
 			\out, out,
 			\bufnum, harm_buffer.bufnum,
 			\mix, mix,
@@ -21,7 +31,7 @@
 			\damp, damp;
 	]);
 
-	synth =Dictionary.new;
+	synth = Dictionary.new;
 	synth.add(\n_partials -> n_partials);
 	synth.add(\harm_array -> harm_array);
 	synth.add(\harm_buffer -> harm_buffer);
@@ -71,10 +81,27 @@
 	synth = ~init_synth.value();
 
 	osc_paths = Dictionary.new;
-	osc_paths.add(\level -> "/spp/scsynth/level");
-	osc_paths.add(\freq -> format("/spp/%/freq", synth.at(\node)));
-	osc_paths.add(\amp -> format("/spp/%/amp", synth.at(\node)));
-	osc_paths.add(\easter -> format("/spp/%/easter/amps", synth.at(\node)));
+	osc_paths.add(\freq -> "/spp/freq");
+	osc_paths.add(\level -> "/spp/level");
+	osc_paths.add(\amp -> "/spp/amp");
+	osc_paths.add(\verb_mix -> "/spp/verb/mix");
+	osc_paths.add(\verb_room -> "/spp/verb/room");
+	osc_paths.add(\verb_damp -> "/spp/verb/damp");
+	osc_paths.add(\mode -> "/spp/mode");
+	osc_paths.add(\ramp_start -> "/spp/ramp/start");
+	osc_paths.add(\ramp_step -> "/spp/ramp/step");
+	osc_paths.add(\decay_k -> "/spp/decay/k");
+	osc_paths.add(\geom_k -> "/spp/geom/k");
+	osc_paths.add(\formant_center -> "/spp/formant/center");
+	osc_paths.add(\formant_width -> "/spp/formant/width");
+	osc_paths.add(\teeth_start -> "/spp/teeth/start");
+	osc_paths.add(\teeth_space -> "/spp/teeth/space");
+	osc_paths.add(\cutoff_n -> "/spp/cutoff/n");
+	osc_paths.add(\shelf_start -> "/spp/shelf/start");
+	osc_paths.add(\shelf_end -> "/spp/shelf/end");
+	osc_paths.add(\shelf_slevel -> "/spp/shelf/slevel");
+	osc_paths.add(\shelf_elevel -> "/spp/shelf/elevel");
+	osc_paths.add(\amps -> "/spp/amps");
 
 	// Build the GUI
 	window = Window.new(
@@ -95,6 +122,7 @@
 	~gui_place_title.value(window, configs);
 
 	// Place nodeID
+	/*
 	gui_node = StaticText(window.view, Rect.new(
 		configs.at(\window_margin),
 		configs.at(\window_height) - 30,
@@ -109,6 +137,7 @@
 		NetAddr.localAddr.port,
 		synth.at(\node))
 	).align_(\left);
+	*/
 
 	param_position = ~gui_global_ctrl.value(
 		window,
@@ -132,7 +161,8 @@
 		),
 		param_position + 1,
 		configs,
-		synth
+		synth,
+		osc_paths
 	);
 
 	param_position = ~gui_reverb_ctrl.value(
@@ -144,7 +174,8 @@
 		),
 		param_position + 1,
 		configs,
-		synth
+		synth,
+		osc_paths
 	);
 
 	window.front;

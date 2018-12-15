@@ -8,11 +8,11 @@ to be kept isolated between instances.
 */
 
 SynthDef.new(\spp, {
-	arg freq, amp, out, bufnum, mix, room, damp;
+	arg freq, amp, level, out, bufnum, mix, room, damp;
 	var harm_osc, sig, reply_impulse, delay_impulse;
 
 	harm_osc = Osc.ar(bufnum, freq, 0, amp, 0);
-	sig = FreeVerb2.ar(harm_osc, harm_osc, mix, room, damp);
+	sig = FreeVerb2.ar(harm_osc, harm_osc, mix, room, damp) * level;
 	Out.ar(out, sig);
 
 	reply_impulse = Impulse.kr(10);

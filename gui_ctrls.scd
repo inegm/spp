@@ -39,11 +39,12 @@ future iterations.
 ~gui_global_ctrl = {
 	arg window, top, position, configs, synth, osc_paths,
 	    freq_val=60.0, min_freq=10.0, max_freq=500.0,
-	    amp_val=0.4, min_amp=0.0, max_amp=1.0;
+	    level_val=0.4, min_level=0.0, max_level=1.0;
 	var freq_label, freq_val_label, freq_slider,
-	    amp_label, amp_val_label, amp_slider, mute_btn,
-	    level_indicator, level_osc, freq_osc, amp_osc,
-	    easter_osc, top_offset;
+	    level_label, level_val_label, level_slider, mute_btn,
+	    level_indicator, level_indicator_osc,
+		freq_osc, amp_osc, level_osc, amps_osc,
+		top_offset;
 
 	top_offset = ~gui_offset_button.value(top, configs);
 	freq_label = ~gui_place_label.value(
@@ -74,41 +75,44 @@ future iterations.
 			synth.at(\oscillator).set(\freq, freq_val);
 		}.defer;
 	}, osc_paths.at(\freq));
-	freq_slider.onClose({ freq_osc.free; });
 
 	position = position + 1;
 
 	top_offset = ~gui_offset_button.value(top, configs);
-	amp_label = ~gui_place_label.value(
-		window, configs, position, top_offset, "amp"
+	level_label = ~gui_place_label.value(
+		window, configs, position, top_offset, "level"
 	);
 	top_offset = ~gui_offset_label.value(top_offset, configs);
-	amp_slider = ~gui_place_slider.value(
+	level_slider = ~gui_place_slider.value(
 		window, configs, position, top_offset
 	);
-	amp_slider.value_(amp_val.linlin(min_amp, max_amp, 0.0, 1.0));
-	amp_slider.action_({
+	level_slider.value_(level_val.linlin(min_level, max_level, 0.0, 1.0));
+	level_slider.action_({
 		arg obj;
-		amp_val = obj.value.linlin(0.0, 1.0, min_amp, max_amp);
-		amp_val_label.string_(amp_val.asStringPrec(2));
-		synth.at(\oscillator).set(\amp, amp_val);
+		level_val = obj.value.linlin(0.0, 1.0, min_level, max_level);
+		level_val_label.string_(level_val.asStringPrec(2));
+		synth.at(\oscillator).set(\level, level_val);
 	});
 	top_offset = ~gui_offset_slider.value(top_offset, configs);
-	amp_val_label = ~gui_place_val_label.value(
+	level_val_label = ~gui_place_val_label.value(
 		window, configs, position, top_offset
 	);
-	amp_val_label.string_(amp_val.asStringPrec(2)).align_(\center);
+	level_val_label.string_(level_val.asStringPrec(2)).align_(\center);
+	level_osc = OSCFunc({
+		arg msg;
+		{ level_slider.valueAction = msg[1] }.defer;
+	}, osc_paths.at(\level));
+
 	amp_osc = OSCFunc({
 		arg msg;
+		var amp_val;
 		{
 			amp_val = msg[1];
-			amp_slider.value_(amp_val.linlin(min_amp, max_amp, 0.0, 1.0));
-			amp_val_label.string_(amp_val.asStringPrec(2));
 			synth.at(\oscillator).set(\amp, amp_val);
 		}.defer;
 	}, osc_paths.at(\amp));
 
-	easter_osc = OSCFunc({
+	amps_osc = OSCFunc({
 		arg msg;
 		var path, amps;
 		{
@@ -127,9 +131,7 @@ future iterations.
 			);
 			~gui_draw_amps.value(window, configs, amps);
 		}.defer;
-	}, osc_paths.at(\easter));
-
-	amp_slider.onClose({ amp_osc.free; easter_osc.free; });
+	}, osc_paths.at(\amps));
 
 	position = position + 1;
 
@@ -138,25 +140,32 @@ future iterations.
 	level_indicator = ~gui_place_level.value(
 		window, configs, position, top_offset
 	);
-	level_indicator.onClose_({ level_osc.free; });
 	level_indicator.drawsPeak = true;
 	level_indicator.style = \led;
 	level_indicator.stepWidth = 3;
 	level_indicator.warning = -3.dbamp;
 	level_indicator.critical = -1.dbamp;
-	level_osc = OSCFunc({
+	level_indicator_osc = OSCFunc({
 		arg msg;
 		{
 			level_indicator.value = msg[3].ampdb.linlin(-40, 0, 0, 1);
 			level_indicator.peakLevel = msg[4].ampdb.linlin(-40, 0, 0, 1);
 		}.defer;
-	}, osc_paths.at(\level), s.addr);
+	}, "/spp/scsynth/level", s.addr);
+
+	freq_slider.onClose = {
+		freq_osc.free;
+		level_osc.free;
+		level_indicator_osc.free;
+		amp_osc.free;
+		amps_osc.free;
+	 };
 
 	position + 1;
 };
 
 ~gui_harm_ctrl = {
-	arg window, top, position, configs, synth;
+	arg window, top, position, configs, synth, osc_paths;
 	var top_offset, initial_position;
 	// buttons
 	var ramp_button, decay_button, geom_button,
@@ -232,8 +241,56 @@ future iterations.
 		shelf_elevel_val=0.0,
 		shelf_elevel_min=0.0,
 		shelf_elevel_max=1.0;
+	// osc
+	var mode_osc,
+		ramp_start_osc, ramp_step_osc,
+		decay_k_osc,
+		geom_k_osc,
+		formant_center_osc, formant_width_osc,
+		teeth_start_osc, teeth_space_osc,
+		cutoff_n_osc,
+		shelf_start_osc, shelf_end_osc,
+		shelf_slevel_osc, shelf_elevel_osc;
 
 	initial_position = position;
+
+	mode_osc = OSCFunc({
+		arg msg;
+		{
+			switch (msg[1],
+				0, {
+					ramp_button.valueAction = 0;
+					decay_button.valueAction = 0;
+					geom_button.valueAction = 0;
+					formant_button.valueAction = 0;
+					teeth_button.valueAction = 0;
+					cutoff_button.valueAction = 0;
+					shelf_button.valueAction = 0;
+				},
+				'r', {
+					ramp_button.valueAction = 1;
+				},
+				'd', {
+					decay_button.valueAction = 1;
+				},
+				'g', {
+					geom_button.valueAction = 1;
+				},
+				'f', {
+					formant_button.valueAction = 1;
+				},
+				't', {
+					teeth_button.valueAction = 1;
+				},
+				'c', {
+					cutoff_button.valueAction = 1;
+				},
+				's', {
+					shelf_button.valueAction = 1;
+				}
+			);
+		}.defer;
+	}, osc_paths.at(\mode));
 
 	// RAMP
 	top_offset = top;
@@ -302,6 +359,10 @@ future iterations.
 	ramp_start_val_label.string_(
 		ramp_start_val.asStringPrec(2)
 	).align_(\center);
+	ramp_start_osc = OSCFunc({
+		arg msg;
+		{ ramp_start_slider.valueAction = msg[1]; }.defer;
+	}, osc_paths.at(\ramp_start));
 
 	position = position + 1;
 
@@ -336,6 +397,15 @@ future iterations.
 		window, configs, position, top_offset
 	);
 	ramp_step_val_label.string_(ramp_step_val.asStringPrec(2)).align_(\center);
+	ramp_step_osc = OSCFunc({
+		arg msg;
+		{ ramp_step_slider.valueAction = msg[1]; }.defer;
+	}, osc_paths.at(\ramp_step));
+	ramp_start_slider.onClose = {
+		mode_osc.free;
+		ramp_step_osc.free;
+		ramp_start_osc.free;
+	};
 
 	position = position + 1;
 
@@ -396,6 +466,11 @@ future iterations.
 		window, configs, position, top_offset
 	);
 	decay_k_val_label.string_(decay_k_val.asStringPrec(3)).align_(\center);
+	decay_k_osc = OSCFunc({
+		arg msg;
+		{ decay_k_slider.valueAction = msg[1]; }.defer;
+	}, osc_paths.at(\decay_k));
+	decay_k_slider.onClose = { decay_k_osc.free; };
 
 	position = position + 1;
 
@@ -454,6 +529,11 @@ future iterations.
 		window, configs, position, top_offset
 	);
 	geom_k_val_label.string_(geom_k_val.asStringPrec(3)).align_(\center);
+	geom_k_osc = OSCFunc({
+		arg msg;
+		{ geom_k_slider.valueAction = msg[1]; }.defer;
+	}, osc_paths.at(\geom_k));
+	geom_k_slider.onClose = { geom_k_osc.free; };
 
 	position = position + 1;
 
@@ -522,6 +602,10 @@ future iterations.
 	formant_center_val_label.string_(
 		round(formant_center_val)
 	).align_(\center);
+	formant_center_osc = OSCFunc({
+		arg msg;
+		{ formant_center_slider.valueAction = msg[1]; }.defer;
+	}, osc_paths.at(\formant_center));
 
 	position = position + 1;
 
@@ -559,6 +643,14 @@ future iterations.
 		window, configs, position, top_offset
 	);
 	formant_width_val_label.string_(round(formant_width_val)).align_(\center);
+	formant_width_osc = OSCFunc({
+		arg msg;
+		{ formant_width_slider.valueAction = msg[1]; }.defer;
+	}, osc_paths.at(\formant_width));
+	formant_center_slider.onClose = {
+		formant_center_osc.free;
+		formant_width_osc.free;
+	};
 
 	position = position + 1;
 
@@ -626,6 +718,10 @@ future iterations.
 		window, configs, position, top_offset
 	);
 	teeth_start_val_label.string_(round(teeth_start_val)).align_(\center);
+	teeth_start_osc = OSCFunc({
+		arg msg;
+		{ teeth_start_slider.valueAction = msg[1]; }.defer;
+	}, osc_paths.at(\teeth_start));
 
 	position = position + 1;
 
@@ -662,6 +758,14 @@ future iterations.
 		window, configs, position, top_offset
 	);
 	teeth_space_val_label.string_(round(teeth_space_val)).align_(\center);
+	teeth_space_osc = OSCFunc({
+		arg msg;
+		{ teeth_space_slider.valueAction = msg[1]; }.defer;
+	}, osc_paths.at(\teeth_space));
+	teeth_start_slider.onClose = {
+		teeth_start_osc.free;
+		teeth_space_osc.free;
+	};
 
 	position = position + 1;
 
@@ -725,6 +829,11 @@ future iterations.
 		window, configs, position, top_offset
 	);
 	cutoff_n_val_label.string_(round(cutoff_n_val)).align_(\center);
+	cutoff_n_osc = OSCFunc({
+		arg msg;
+		{ cutoff_n_slider.valueAction = msg[1]; }.defer;
+	}, osc_paths.at(\cutoff_n));
+	cutoff_n_slider.onClose = { cutoff_n_osc.free; };
 
 	position = position + 1;
 
@@ -794,6 +903,10 @@ future iterations.
 		window, configs, position, top_offset
 	);
 	shelf_start_val_label.string_(round(shelf_start_val)).align_(\center);
+	shelf_start_osc = OSCFunc({
+		arg msg;
+		{ shelf_start_slider.valueAction = msg[1]; }.defer;
+	}, osc_paths.at(\shelf_start));
 
 	position = position + 1;
 
@@ -832,6 +945,10 @@ future iterations.
 		window, configs, position, top_offset
 	);
 	shelf_end_val_label.string_(round(shelf_end_val)).align_(\center);
+	shelf_end_osc = OSCFunc({
+		arg msg;
+		{ shelf_end_slider.valueAction = msg[1]; }.defer;
+	}, osc_paths.at(\shelf_end));
 
 	position = position + 1;
 
@@ -870,6 +987,10 @@ future iterations.
 		window, configs, position, top_offset
 	);
 	shelf_slevel_val_label.string_(round(shelf_slevel_val)).align_(\center);
+	shelf_slevel_osc = OSCFunc({
+		arg msg;
+		{ shelf_slevel_slider.valueAction = msg[1]; }.defer;
+	}, osc_paths.at(\shelf_slevel));
 
 	position = position + 1;
 
@@ -910,16 +1031,26 @@ future iterations.
 	shelf_elevel_val_label.string_(
 		shelf_elevel_val.asStringPrec(2)
 	).align_(\center);
+	shelf_elevel_osc = OSCFunc({
+		arg msg;
+		{ shelf_elevel_slider.valueAction = msg[1]; }.defer;
+	}, osc_paths.at(\shelf_elevel));
+	shelf_start_slider.onClose = {
+		shelf_start_osc.free;
+		shelf_end_osc.free;
+		shelf_slevel_osc.free;
+		shelf_elevel_osc.free;
+	};
 
 	position = position + 1;
 };
 
 ~gui_reverb_ctrl = {
-	arg window, top, position, configs, synth,
+	arg window, top, position, configs, synth, osc_paths,
 		mix_val=0.6, room_val=0.6, damp_val=0.5;
-	var mix_label, mix_slider, mix_val_label,
-	    room_label, room_slider, room_val_label,
-		damp_label, damp_slider, damp_val_label,
+	var mix_label, mix_slider, mix_val_label, mix_osc,
+	    room_label, room_slider, room_val_label, room_osc,
+		damp_label, damp_slider, damp_val_label, damp_osc,
 		top_offset;
 
 	synth.at(\oscillator).set(\mix, mix_val);
@@ -946,6 +1077,10 @@ future iterations.
 		window, configs, position, top_offset
 	);
 	mix_val_label.string_(mix_val.asStringPrec(2)).align_(\center);
+	mix_osc = OSCFunc({
+		arg msg;
+		{ mix_slider.valueAction = msg[1] }.defer;
+	}, osc_paths.at(\verb_mix));
 
 	position = position + 1;
 
@@ -969,6 +1104,10 @@ future iterations.
 		window, configs, position, top_offset
 	);
 	room_val_label.string_(room_val.asStringPrec(2)).align_(\center);
+	room_osc = OSCFunc({
+		arg msg;
+		{ room_slider.valueAction = msg[1] }.defer;
+	}, osc_paths.at(\verb_room));
 
 	position = position + 1;
 
@@ -992,6 +1131,15 @@ future iterations.
 		window, configs, position, top_offset
 	);
 	damp_val_label.string_(damp_val.asStringPrec(2)).align_(\center);
+	damp_osc = OSCFunc({
+		arg msg;
+		{ damp_slider.valueAction = msg[1] }.defer;
+	}, osc_paths.at(\verb_damp));
+	mix_slider.onClose = {
+		mix_osc.free;
+		room_osc.free;
+		damp_osc.free;
+	};
 
 	position = position + 1;
 };
