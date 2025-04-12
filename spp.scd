@@ -4,12 +4,15 @@
 (PathName(thisProcess.nowExecutingPath).pathOnly ++ "gui_place.scd").loadPaths;
 (PathName(thisProcess.nowExecutingPath).pathOnly ++ "gui_ctrls.scd").loadPaths;
 }.doOnServerBoot;
-o = Server.local.options;
+/*o = Server.local.options;
 o.device = "ES-8";
 o.numOutputBusChannels = 8;
-s.reboot;
-s.meter;
+s.reboot;*/
+// nil the input channels, they aren't needed and take up CPU
+s.boot;
+// s.meter;
 )
+
 (
 ~init_synth = {
 	arg n_partials=128, freq=60.0, amp=1.0, level=0.4, out=0,
